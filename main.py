@@ -80,6 +80,7 @@ class Window(Frame):
         EXCEEDS_BY = float(self.exceedsEntry.get())
         global OUTPUT_FILE_NAME
         OUTPUT_FILE_NAME = self.outputNameEntry.get()
+        self.spliceClips()
         
 
     def toggleAudio(self):
@@ -179,6 +180,58 @@ class Window(Frame):
                 array.append(0)
             outputArray.append(array)
         return outputArray
+
+
+    def spliceClips(self):
+        # MAIN PROCESS
+        audioDataArrays = []
+        # Generate .wav files for each video clip, create associated outputArray
+        for i in range(len(INPUT_FILES)):
+            # Convert input to audio waveform and call via command in subprocess
+            command = "ffmpeg -i " + INPUT_FILES[
+                i] + " -ab 160k -ac 2 -y -vn " + TEMP_FOLDER + "audio" + str(i) + ".wav"
+            subprocess.call(command, shell=False)
+            audioRate, audioArray = wavfile.read(TEMP_FOLDER + 'audio' + str(i) + '.wav')
+            audioDataArrays.append(self.parseAudioData(audioRate, audioArray))
+        outputArray = self.compareAudioArrays(audioDataArrays)
+
+        # Utilizes outputArray to determine which clips should be split and inserted where
+        outputClipList = []
+        audioClipList = []  # Only used if OVERLAP_AUDIO is set to 1
+        counter = 0
+        prevPriority = -1
+        prevEndPt = -1
+        while counter < len(outputArray):
+            # Initialization of loop
+            if prevEndPt == -1:
+                prevPriority = outputArray[counter]
+                prevEndPt = 0
+            # If the 'priority clip' is different than previous, finalize previous clip and add to clip list
+            elif prevPriority != outputArray[counter]:
+                print(str(counter) + " [" + str(prevPriority) + "] || SPLIT_PT: " + "start: " + str(
+                    prevEndPt) + " end: " + str(counter / SAMPLE_RATE))
+                outputClipList.append(
+                    VideoFileClip(INPUT_FILES[prevPriority], audio=NO_OVERLAP_AUDIO).subclip(prevEndPt,
+                                                                                             counter / SAMPLE_RATE))
+                prevPriority = outputArray[counter]
+                prevEndPt = counter / SAMPLE_RATE
+            counter += 1
+        print(str(counter) + " [" + str(prevPriority) + "] || SPLIT_PT: " + "start: " + str(prevEndPt) + " end: " + str(
+            counter / SAMPLE_RATE))
+        outputClipList.append(
+            VideoFileClip(INPUT_FILES[prevPriority], audio=NO_OVERLAP_AUDIO).subclip(prevEndPt, (
+                        counter - 1) / SAMPLE_RATE))
+        # Concatenate clips and output
+        videoOutput = concatenate_videoclips(outputClipList)
+
+        # If audio should be overlapped, create an audio file with all overlapped and mix with video
+        if not NO_OVERLAP_AUDIO:
+            for wavFileIndex in range(len(INPUT_FILES)):
+                audioClipList.append(AudioFileClip(TEMP_FOLDER + "audio" + str(wavFileIndex) + ".wav"))
+            audioOutput = CompositeAudioClip(audioClipList)
+            videoOutput = videoOutput.set_audio(audioOutput)
+
+        videoOutput.write_videofile(OUTPUT_FOLDER + OUTPUT_FILE_NAME + ".mp4")
 
 
 root = Tk()
