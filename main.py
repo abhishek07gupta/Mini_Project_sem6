@@ -9,11 +9,10 @@ import os
 from moviepy.editor import VideoFileClip, concatenate_videoclips, CompositeVideoClip, TextClip
 
 
-
 # GLOBALS
 INPUT_FILES = []                            # List of input files (in local directory)
-TEMP_FOLDER = 'tmp/'                        # Temp folder name
-OUTPUT_FOLDER = 'output/'                   # Output folder name
+TEMP_FOLDER = 'autoPodcastEditor/tmp/'                        # Temp folder name
+OUTPUT_FOLDER = 'autoPodcastEditor/output/'                   # Output folder name
 OUTPUT_FILE_NAME = "output"                 # Output file name
 SAMPLE_RATE = 24                            # Number of samples to take per second to check volume level
 THRESHOLD = 5                               # Required # of consecutive highest indices needed to take priority
@@ -26,7 +25,6 @@ checkpoints = []  # Global storing tuples of array length + associated index, so
 checkpoint_counter = 0  # Determines which checkpoint currently at
 ul_x = 10
 ul_y = 10
-
 
 # GUI CREATION
 class Window(Frame):
@@ -75,6 +73,10 @@ class Window(Frame):
         processButton = Button(self, text="Process", command=self.confirmSettings, width=15, height=3)
         processButton.place(x=ul_x + 460, y=ul_y + 310)
 
+        caption_button = Button(self, text="Caption", command=self.caption_video)
+        caption_button.place(x=ul_x + 460, y=ul_y + 360)
+
+
     def confirmSettings(self):
         global SAMPLE_RATE
         SAMPLE_RATE = int(self.sampleRateEntry.get())
@@ -85,7 +87,6 @@ class Window(Frame):
         global OUTPUT_FILE_NAME
         OUTPUT_FILE_NAME = self.outputNameEntry.get()
         self.spliceClips()
-        
 
     def toggleAudio(self):
         global NO_OVERLAP_AUDIO
@@ -98,7 +99,7 @@ class Window(Frame):
             fileDir = Label(self, text=filename)
             fileDir.place(x=ul_x, y=ul_y+28+23*len(INPUT_FILES))
 
-# HELPER FUNCTIONS
+    # HELPER FUNCTIONS
 
     # TAKES RAW WAVEFORM DATA AND CREATES INTEGER WAVEFORM ARRAY
     # INPUT: audioRate  = audio sample rate
@@ -185,7 +186,6 @@ class Window(Frame):
             outputArray.append(array)
         return outputArray
 
-
     def spliceClips(self):
         # MAIN PROCESS
         audioDataArrays = []
@@ -235,8 +235,9 @@ class Window(Frame):
             audioOutput = CompositeAudioClip(audioClipList)
             videoOutput = videoOutput.set_audio(audioOutput)
 
-        videoOutput.write_videofile(OUTPUT_FOLDER + OUTPUT_FILE_NAME + ".mp4")
-
+        videoOutput.write_videofile(
+            OUTPUT_FOLDER + OUTPUT_FILE_NAME + ".mp4")
+        
     def caption_video(self):
             input_video_path = os.path.join(OUTPUT_FOLDER, OUTPUT_FILE_NAME + ".mp4")
             output_audio_path = os.path.join(OUTPUT_FOLDER, OUTPUT_FILE_NAME + ".wav")
@@ -252,6 +253,12 @@ class Window(Frame):
 
             with open("subtitles.srt", "w") as f:
                 f.write(subtitles)
+
+def srt_time_to_seconds(srt_time):
+    hours, minutes, rest = srt_time.split(':')
+    seconds, milliseconds = rest.split(',')
+    total_seconds = int(hours) * 3600 + int(minutes) * 60 + int(seconds) + int(milliseconds) / 1000
+    return total_seconds
 
 root = Tk()
 root.geometry("600x400")
