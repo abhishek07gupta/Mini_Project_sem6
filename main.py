@@ -80,6 +80,7 @@ class Window(Frame):
         EXCEEDS_BY = float(self.exceedsEntry.get())
         global OUTPUT_FILE_NAME
         OUTPUT_FILE_NAME = self.outputNameEntry.get()
+        
 
     def toggleAudio(self):
         global NO_OVERLAP_AUDIO
@@ -91,6 +92,93 @@ class Window(Frame):
             INPUT_FILES.append(filename)
             fileDir = Label(self, text=filename)
             fileDir.place(x=ul_x, y=ul_y+28+23*len(INPUT_FILES))
+
+# HELPER FUNCTIONS
+
+    # TAKES RAW WAVEFORM DATA AND CREATES INTEGER WAVEFORM ARRAY
+    # INPUT: audioRate  = audio sample rate
+    #        audioArray = associated audio waveform array
+    # OUTPUT: outputArray = downscaled audioArray based on SAMPLE_RATE
+    def parseAudioData(self, audioRate, audioArray):
+        sampleDivider = math.floor(audioRate / SAMPLE_RATE)
+        outputArray = []
+        sampleCounter = 0
+        while sampleCounter <= audioArray.shape[0]:
+            outputArray.append(audioArray[sampleCounter][0])
+            sampleCounter += sampleDivider
+        return outputArray
+
+    # TAKES ARRAY OF AUDIOARRAYS AND OUTPUTS INDEX ARRAY INDICATING WHICH ARRAY IS LOUDEST AT GIVEN TIME
+    # INPUT: audioArrays    = array of audioArrays for each clip to compare audio
+    # OUTPUT: outputArray   = array with indices 1..numArrays indicating which clip should overlay
+    def compareAudioArrays(self, audioArrays):
+        priorityArray = 0  # Current array that should have video priority (zero-based)
+        consecutiveArray = 0  # Which array currently has the highest waveform integer
+        prevArray = 0  # Which array on previous iteration had highest waveform integer
+        consecutiveCount = 0  # Number of consecutive times audio is larger than others
+        counter = 0  # Current array index to compare
+        outputArray = []
+
+        audioArrays = self.normalizeArrays(audioArrays)  # Set arrays to equal lengths by concatenating zeroes
+
+        while counter < len(audioArrays[0]):
+            consecutiveArray = self.returnHighestIndex(audioArrays, counter, priorityArray)  # Find index of loudest clip
+            # If loudest clip is a different one than the previous loudest clip, add 1 to consecutive counter
+            if (consecutiveArray != prevArray):
+                prevArray = consecutiveArray
+                consecutiveCount = 1
+            else:
+                consecutiveCount += 1
+            # If the overriding loudest clip has been louder >= THRESHOLD # of times, replace it
+            if (consecutiveCount >= THRESHOLD):
+                priorityArray = consecutiveArray
+            for checkpoint in checkpoints:
+                if checkpoint == counter:
+                    priorityArray = consecutiveArray
+            outputArray.append(priorityArray)
+            counter += 1
+        # Write output data to text file (for debugging)
+        f = open(TEMP_FOLDER + "audioData.txt", "w")
+        f.write(str(outputArray))
+        f.close()
+        return outputArray
+
+    # COMPARES AUDIO WAVEFORMS AT GIVEN TIME AND RETURNS INDEX OF LOUDEST
+    # INPUT: audioArrays     = array of audio waveforms
+    #        index           = index to compare waveform integers
+    #        currentPriority = current array that has priority (for EXCEEDS_BY)
+    # OUTPUT: rerturnIndex   = index of audioArray with highest waveform integer
+    def returnHighestIndex(self, audioArrays, index, currentPriority):
+        maxVal = 0  # Maximum waveform value found so far
+        returnIndex = 0  # Index of array with highest waveform value
+        for c in range(len(audioArrays)):
+            if c != currentPriority:
+                if abs(audioArrays[c][index]) > maxVal:
+                    maxVal = abs(audioArrays[c][index])
+                    returnIndex = c
+            else:
+                if abs(audioArrays[c][index]) * EXCEEDS_BY > maxVal:
+                    maxVal = abs(audioArrays[c][index]) * EXCEEDS_BY
+                    returnIndex = c
+        return returnIndex
+
+    # SETS ALL AUDIO ARRAYS TO SAME LENGTH BY CONCATENATING ZEROES TO SHORTER ARRAYS
+    # INPUT: audioArrays  = array of audio arrays containing integer waveform data
+    # OUTPUT: outputArray = array of audio arrays all equal length (concatenates 0 to shorter arrays)
+    def normalizeArrays(self, audioArrays):
+        maxArrayLen = 0
+        outputArray = []
+        # Get the length of the longest array
+        for array in audioArrays:
+            if len(array) > maxArrayLen:
+                maxArrayLen = len(array)
+            # checkpoints.append(len(array))
+        # Fill shorter arrays with trailing zeroes
+        for array in audioArrays:
+            for c in range(maxArrayLen - len(array)):
+                array.append(0)
+            outputArray.append(array)
+        return outputArray
 
 
 root = Tk()
