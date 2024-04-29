@@ -4,6 +4,10 @@ from tkinter.filedialog import askopenfilename
 from scipy.io import wavfile
 import subprocess
 import math
+import assemblyai as aai
+import os
+from moviepy.editor import VideoFileClip, concatenate_videoclips, CompositeVideoClip, TextClip
+
 
 
 # GLOBALS
@@ -233,6 +237,21 @@ class Window(Frame):
 
         videoOutput.write_videofile(OUTPUT_FOLDER + OUTPUT_FILE_NAME + ".mp4")
 
+    def caption_video(self):
+            input_video_path = os.path.join(OUTPUT_FOLDER, OUTPUT_FILE_NAME + ".mp4")
+            output_audio_path = os.path.join(OUTPUT_FOLDER, OUTPUT_FILE_NAME + ".wav")
+            
+            # Convert the video to .wav file using ffmpeg
+            command = f"ffmpeg -i {input_video_path} -ab 160k -ac 2 -y -vn {output_audio_path}"
+            subprocess.call(command, shell=True)
+            print("Video captioned successfully.")
+
+            aai.settings.api_key = "97eaeea548be4428a0595f951288a2bc"
+            transcribe = aai.Transcriber().transcribe(r"C:\Users\Atharva\Desktop\copy4mini\autoPodcastEditor\output\output.wav")
+            subtitles = transcribe.export_subtitles_srt()
+
+            with open("subtitles.srt", "w") as f:
+                f.write(subtitles)
 
 root = Tk()
 root.geometry("600x400")
